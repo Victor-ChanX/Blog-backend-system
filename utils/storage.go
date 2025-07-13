@@ -139,6 +139,49 @@ func getContentType(filename string) string {
 	}
 }
 
+// GeneratePresignedURL 生成预签名上传URL
+func (s *StorageService) GeneratePresignedURL(fileName string, contentType string) (string, error) {
+	req, _ := s.s3Client.PutObjectRequest(&s3.PutObjectInput{
+		Bucket:      aws.String(config.AppConfig.R2BucketName),
+		Key:         aws.String(fileName),
+		ContentType: aws.String(contentType),
+	})
+
+	// 设置过期时间为15分钟
+	url, err := req.Presign(15 * time.Minute)
+	if err != nil {
+		return "", fmt.Errorf("生成预签名URL失败: %v", err)
+	}
+
+	return url, nil
+}
+
+// GeneratePresignedDeleteURL 生成预签名删除URL
+func (s *StorageService) GeneratePresignedDeleteURL(fileName string) (string, error) {
+	req, _ := s.s3Client.DeleteObjectRequest(&s3.DeleteObjectInput{
+		Bucket: aws.String(config.AppConfig.R2BucketName),
+		Key:    aws.String(fileName),
+	})
+
+	// 设置过期时间为15分钟
+	url, err := req.Presign(15 * time.Minute)
+	if err != nil {
+		return "", fmt.Errorf("生成预签名删除URL失败: %v", err)
+	}
+
+	return url, nil
+}
+
+// GenerateUniqueFileName 生成唯一文件名（给外部调用）
+func GenerateUniqueFileName(originalName string) string {
+	return generateFileName(originalName)
+}
+
+// GeneratePublicURL 生成公共访问URL
+func GeneratePublicURL(fileName string) string {
+	return fmt.Sprintf("%s/%s", strings.TrimRight(config.AppConfig.R2PublicURL, "/"), fileName)
+}
+
 // ExtractFileNameFromURL 从URL中提取文件名
 func ExtractFileNameFromURL(url string) string {
 	parts := strings.Split(url, "/")

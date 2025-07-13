@@ -65,6 +65,7 @@ func SetupRoutes(r *gin.Engine) {
 		// 图片上传路由（需要认证）
 		upload := api.Group("/upload").Use(middleware.AuthMiddleware())
 		{
+			upload.POST("/presigned-url", controllers.GetPresignedURL)
 			upload.POST("/image", controllers.UploadImage)
 			upload.DELETE("/image", controllers.DeleteImage)
 		}
