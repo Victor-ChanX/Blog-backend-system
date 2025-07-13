@@ -1,0 +1,9 @@
+.env
+.git
+.gitignore
+README.md
+*.log
+.DS_Store
+tmp/
+scripts/
+cmd/migrate/
