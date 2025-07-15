@@ -39,23 +39,48 @@ func CreateArticle(c *gin.Context) {
 		req.Status = "draft"
 	}
 
+	// 使用事务确保数据一致性
+	tx := models.DB.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// 创建文章基本信息
 	article := models.Article{
 		Title:   req.Title,
-		Content: req.Content,
 		Summary: req.Summary,
 		Status:  req.Status,
 		UserID:  userID.(uint),
 	}
 
-	if err := models.DB.Create(&article).Error; err != nil {
+	if err := tx.Create(&article).Error; err != nil {
+		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "文章创建失败",
 		})
 		return
 	}
 
-	// 预加载用户信息
-	models.DB.Preload("User").First(&article, article.ID)
+	// 创建文章内容
+	articleContent := models.ArticleContent{
+		ArticleID: article.ID,
+		Content:   req.Content,
+	}
+
+	if err := tx.Create(&articleContent).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "文章内容创建失败",
+		})
+		return
+	}
+
+	tx.Commit()
+
+	// 预加载用户信息和内容
+	models.DB.Preload("User").Preload("Content").First(&article, article.ID)
 
 	c.JSON(http.StatusCreated, article)
 }
@@ -75,8 +100,13 @@ func GetArticles(c *gin.Context) {
 		if needsUserInfo(selectedFields) {
 			query = query.Preload("User")
 		}
+		
+		// 如果需要内容信息，则预加载
+		if needsContentInfo(selectedFields) {
+			query = query.Preload("Content")
+		}
 	} else {
-		// 默认预加载用户信息
+		// 默认预加载用户信息，但不加载内容
 		query = query.Preload("User")
 	}
 
@@ -125,9 +155,14 @@ func GetArticle(c *gin.Context) {
 		if needsUserInfo(selectedFields) {
 			query = query.Preload("User")
 		}
+		
+		// 如果需要内容信息，则预加载
+		if needsContentInfo(selectedFields) {
+			query = query.Preload("Content")
+		}
 	} else {
-		// 默认预加载用户信息
-		query = query.Preload("User")
+		// 默认预加载用户信息和内容（获取单篇文章通常需要完整内容）
+		query = query.Preload("User").Preload("Content")
 	}
 
 	if err := query.First(&article, id).Error; err != nil {
@@ -175,23 +210,60 @@ func UpdateArticle(c *gin.Context) {
 		return
 	}
 
-	// 更新文章
+	// 使用事务确保数据一致性
+	tx := models.DB.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// 更新文章基本信息
 	article.Title = req.Title
-	article.Content = req.Content
 	article.Summary = req.Summary
 	if req.Status != "" {
 		article.Status = req.Status
 	}
 
-	if err := models.DB.Save(&article).Error; err != nil {
+	if err := tx.Save(&article).Error; err != nil {
+		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "文章更新失败",
 		})
 		return
 	}
 
-	// 预加载用户信息
-	models.DB.Preload("User").First(&article, article.ID)
+	// 更新文章内容
+	var articleContent models.ArticleContent
+	if err := tx.Where("article_id = ?", article.ID).First(&articleContent).Error; err != nil {
+		// 如果内容不存在，创建新的
+		articleContent = models.ArticleContent{
+			ArticleID: article.ID,
+			Content:   req.Content,
+		}
+		if err := tx.Create(&articleContent).Error; err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "文章内容创建失败",
+			})
+			return
+		}
+	} else {
+		// 更新现有内容
+		articleContent.Content = req.Content
+		if err := tx.Save(&articleContent).Error; err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "文章内容更新失败",
+			})
+			return
+		}
+	}
+
+	tx.Commit()
+
+	// 预加载用户信息和内容
+	models.DB.Preload("User").Preload("Content").First(&article, article.ID)
 
 	c.JSON(http.StatusOK, article)
 }
@@ -249,7 +321,7 @@ func parseFields(fields string) []string {
 	allowedFields := map[string]string{
 		"id":         "id",
 		"title":      "title",
-		"content":    "content",
+		"content":    "content",  // 这个字段会触发内容表的预加载
 		"summary":    "summary",
 		"status":     "status",
 		"user_id":    "user_id",
@@ -281,6 +353,22 @@ func needsUserInfo(selectedFields []string) bool {
 	// 如果选择了user_id字段，通常需要用户信息
 	for _, field := range selectedFields {
 		if field == "user_id" {
+			return true
+		}
+	}
+	
+	return false
+}
+
+// needsContentInfo 检查是否需要内容信息
+func needsContentInfo(selectedFields []string) bool {
+	if selectedFields == nil {
+		return false // 默认情况下不需要内容信息（除非是获取单篇文章）
+	}
+	
+	// 如果选择了content字段，需要内容信息
+	for _, field := range selectedFields {
+		if field == "content" {
 			return true
 		}
 	}

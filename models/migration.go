@@ -45,6 +45,82 @@ var migrations = []MigrationItem{
 			return db.Migrator().DropTable(&APILog{})
 		},
 	},
+	{
+		Version: "003",
+		Name:    "separate_article_content",
+		Up: func(db *gorm.DB) error {
+			// 创建文章内容表
+			if err := db.AutoMigrate(&ArticleContent{}); err != nil {
+				return err
+			}
+
+			// 迁移现有文章内容到新表
+			// 由于我们已经修改了Article模型，需要直接查询数据库
+			var articles []struct {
+				ID        uint
+				Content   string
+				CreatedAt time.Time
+				UpdatedAt time.Time
+			}
+			
+			if err := db.Table("articles").Select("id, content, created_at, updated_at").Find(&articles).Error; err != nil {
+				return err
+			}
+
+			for _, article := range articles {
+				// 检查是否已有内容记录
+				var existingContent ArticleContent
+				if err := db.Where("article_id = ?", article.ID).First(&existingContent).Error; err == gorm.ErrRecordNotFound {
+					// 创建内容记录
+					articleContent := ArticleContent{
+						ArticleID: article.ID,
+						Content:   article.Content,
+						CreatedAt: article.CreatedAt,
+						UpdatedAt: article.UpdatedAt,
+					}
+					if err := db.Create(&articleContent).Error; err != nil {
+						return err
+					}
+				}
+			}
+
+			// 删除原文章表的content列
+			if db.Migrator().HasColumn(&Article{}, "content") {
+				if err := db.Migrator().DropColumn(&Article{}, "content"); err != nil {
+					return err
+				}
+			}
+
+			return nil
+		},
+		Down: func(db *gorm.DB) error {
+			// 添加回content列
+			if !db.Migrator().HasColumn(&Article{}, "content") {
+				if err := db.Migrator().AddColumn(&Article{}, "content"); err != nil {
+					return err
+				}
+			}
+
+			// 恢复内容到文章表
+			var articles []Article
+			if err := db.Find(&articles).Error; err != nil {
+				return err
+			}
+
+			for _, article := range articles {
+				var content ArticleContent
+				if err := db.Where("article_id = ?", article.ID).First(&content).Error; err == nil {
+					// 更新文章内容
+					if err := db.Model(&article).Update("content", content.Content).Error; err != nil {
+						return err
+					}
+				}
+			}
+
+			// 删除文章内容表
+			return db.Migrator().DropTable(&ArticleContent{})
+		},
+	},
 }
 
 // RunMigrations 执行所有未应用的迁移
