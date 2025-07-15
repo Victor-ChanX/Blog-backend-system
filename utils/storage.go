@@ -2,12 +2,9 @@ package utils
 
 import (
 	"blog-server/config"
-	"bytes"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
-	"io"
-	"mime/multipart"
 	"path/filepath"
 	"strings"
 	"time"
@@ -42,44 +39,6 @@ func InitStorage() error {
 	return nil
 }
 
-// UploadImage 上传图片到R2
-func (s *StorageService) UploadImage(file multipart.File, header *multipart.FileHeader) (string, error) {
-	// 验证文件类型
-	if !isValidImageType(header.Filename) {
-		return "", fmt.Errorf("不支持的文件类型")
-	}
-
-	// 验证文件大小 (限制为5MB)
-	if header.Size > 5*1024*1024 {
-		return "", fmt.Errorf("文件大小不能超过5MB")
-	}
-
-	// 生成唯一文件名
-	fileName := generateFileName(header.Filename)
-
-	// 读取文件内容
-	fileContent, err := io.ReadAll(file)
-	if err != nil {
-		return "", fmt.Errorf("读取文件失败: %v", err)
-	}
-
-	// 上传到R2
-	_, err = s.s3Client.PutObject(&s3.PutObjectInput{
-		Bucket:        aws.String(config.AppConfig.R2BucketName),
-		Key:           aws.String(fileName),
-		Body:          bytes.NewReader(fileContent),
-		ContentType:   aws.String(getContentType(header.Filename)),
-		ContentLength: aws.Int64(header.Size),
-	})
-
-	if err != nil {
-		return "", fmt.Errorf("上传文件失败: %v", err)
-	}
-
-	// 返回公共URL
-	publicURL := fmt.Sprintf("%s/%s", strings.TrimRight(config.AppConfig.R2PublicURL, "/"), fileName)
-	return publicURL, nil
-}
 
 // DeleteImage 删除R2中的图片
 func (s *StorageService) DeleteImage(fileName string) error {

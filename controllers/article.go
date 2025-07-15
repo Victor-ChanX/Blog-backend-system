@@ -4,6 +4,7 @@ import (
 	"blog-server/models"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -62,7 +63,22 @@ func CreateArticle(c *gin.Context) {
 // GetArticles 获取文章列表
 func GetArticles(c *gin.Context) {
 	var articles []models.Article
-	query := models.DB.Preload("User")
+	query := models.DB.Model(&models.Article{})
+
+	// 字段选择
+	fields := c.Query("fields")
+	if fields != "" {
+		selectedFields := parseFields(fields)
+		query = query.Select(selectedFields)
+		
+		// 如果需要用户信息，则预加载
+		if needsUserInfo(selectedFields) {
+			query = query.Preload("User")
+		}
+	} else {
+		// 默认预加载用户信息
+		query = query.Preload("User")
+	}
 
 	// 状态过滤
 	if status := c.Query("status"); status != "" {
@@ -96,8 +112,25 @@ func GetArticles(c *gin.Context) {
 func GetArticle(c *gin.Context) {
 	id := c.Param("id")
 	var article models.Article
+	
+	query := models.DB.Model(&models.Article{})
 
-	if err := models.DB.Preload("User").First(&article, id).Error; err != nil {
+	// 字段选择
+	fields := c.Query("fields")
+	if fields != "" {
+		selectedFields := parseFields(fields)
+		query = query.Select(selectedFields)
+		
+		// 如果需要用户信息，则预加载
+		if needsUserInfo(selectedFields) {
+			query = query.Preload("User")
+		}
+	} else {
+		// 默认预加载用户信息
+		query = query.Preload("User")
+	}
+
+	if err := query.First(&article, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"error": "文章不存在",
 		})
@@ -201,4 +234,56 @@ func DeleteArticle(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message": "文章删除成功",
 	})
+}
+
+// parseFields 解析fields参数
+func parseFields(fields string) []string {
+	if fields == "" {
+		return nil
+	}
+	
+	fieldList := strings.Split(fields, ",")
+	var selectedFields []string
+	
+	// 定义允许的字段
+	allowedFields := map[string]string{
+		"id":         "id",
+		"title":      "title",
+		"content":    "content",
+		"summary":    "summary",
+		"status":     "status",
+		"user_id":    "user_id",
+		"created_at": "created_at",
+		"updated_at": "updated_at",
+	}
+	
+	for _, field := range fieldList {
+		field = strings.TrimSpace(field)
+		if dbField, exists := allowedFields[field]; exists {
+			selectedFields = append(selectedFields, dbField)
+		}
+	}
+	
+	// 如果没有有效字段，返回nil使用默认查询
+	if len(selectedFields) == 0 {
+		return nil
+	}
+	
+	return selectedFields
+}
+
+// needsUserInfo 检查是否需要用户信息
+func needsUserInfo(selectedFields []string) bool {
+	if selectedFields == nil {
+		return true // 默认情况下需要用户信息
+	}
+	
+	// 如果选择了user_id字段，通常需要用户信息
+	for _, field := range selectedFields {
+		if field == "user_id" {
+			return true
+		}
+	}
+	
+	return false
 }
