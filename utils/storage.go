@@ -138,7 +138,16 @@ func GenerateUniqueFileName(originalName string) string {
 
 // GeneratePublicURL 生成公共访问URL
 func GeneratePublicURL(fileName string) string {
-	return fmt.Sprintf("%s/%s", strings.TrimRight(config.AppConfig.R2PublicURL, "/"), fileName)
+	baseURL := strings.TrimRight(config.AppConfig.R2PublicURL, "/")
+	bucketName := config.AppConfig.R2BucketName
+	
+	// 如果baseURL已经包含了bucket名称，直接拼接
+	if strings.Contains(baseURL, bucketName) {
+		return fmt.Sprintf("%s/%s", baseURL, fileName)
+	}
+	
+	// 如果baseURL不包含bucket名称，则加上bucket名称
+	return fmt.Sprintf("%s/%s/%s", baseURL, bucketName, fileName)
 }
 
 // ExtractFileNameFromURL 从URL中提取文件名
