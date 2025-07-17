@@ -54,38 +54,38 @@ var migrations = []MigrationItem{
 				return err
 			}
 
-			// 迁移现有文章内容到新表
-			// 由于我们已经修改了Article模型，需要直接查询数据库
-			var articles []struct {
-				ID        uint
-				Content   string
-				CreatedAt time.Time
-				UpdatedAt time.Time
-			}
-			
-			if err := db.Table("articles").Select("id, content, created_at, updated_at").Find(&articles).Error; err != nil {
-				return err
-			}
+			// 检查articles表是否存在content字段
+			if db.Migrator().HasColumn(&Article{}, "content") {
+				// 迁移现有文章内容到新表
+				var articles []struct {
+					ID        uint
+					Content   string
+					CreatedAt time.Time
+					UpdatedAt time.Time
+				}
+				
+				if err := db.Table("articles").Select("id, content, created_at, updated_at").Find(&articles).Error; err != nil {
+					return err
+				}
 
-			for _, article := range articles {
-				// 检查是否已有内容记录
-				var existingContent ArticleContent
-				if err := db.Where("article_id = ?", article.ID).First(&existingContent).Error; err == gorm.ErrRecordNotFound {
-					// 创建内容记录
-					articleContent := ArticleContent{
-						ArticleID: article.ID,
-						Content:   article.Content,
-						CreatedAt: article.CreatedAt,
-						UpdatedAt: article.UpdatedAt,
-					}
-					if err := db.Create(&articleContent).Error; err != nil {
-						return err
+				for _, article := range articles {
+					// 检查是否已有内容记录
+					var existingContent ArticleContent
+					if err := db.Where("article_id = ?", article.ID).First(&existingContent).Error; err == gorm.ErrRecordNotFound {
+						// 创建内容记录
+						articleContent := ArticleContent{
+							ArticleID: article.ID,
+							Content:   article.Content,
+							CreatedAt: article.CreatedAt,
+							UpdatedAt: article.UpdatedAt,
+						}
+						if err := db.Create(&articleContent).Error; err != nil {
+							return err
+						}
 					}
 				}
-			}
 
-			// 删除原文章表的content列
-			if db.Migrator().HasColumn(&Article{}, "content") {
+				// 删除原文章表的content列
 				if err := db.Migrator().DropColumn(&Article{}, "content"); err != nil {
 					return err
 				}
