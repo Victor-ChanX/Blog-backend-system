@@ -44,6 +44,13 @@ func LoadConfig() {
 		R2PublicURL:       getEnv("R2_PUBLIC_URL", ""),
 	}
 
+	// 验证是否成功加载生产环境配置
+	if AppConfig.R2AccessKeyID != "" {
+		log.Println("✓ 生产环境配置加载成功")
+	} else {
+		log.Println("使用本地开发配置")
+	}
+	
 	log.Println("配置加载完成")
 }
 
