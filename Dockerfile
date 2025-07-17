@@ -18,7 +18,9 @@ COPY . .
 
 # 构建应用
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main .
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o migrate ./cmd/migrate
+
+# 构建迁移工具（如果存在）
+RUN if [ -d "./cmd/migrate" ]; then CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o migrate ./cmd/migrate; fi
 
 # 运行阶段
 FROM alpine:latest
@@ -30,7 +32,7 @@ WORKDIR /root/
 
 # 从构建阶段复制二进制文件
 COPY --from=builder /app/main .
-COPY --from=builder /app/migrate .
+COPY --from=builder /app/migrate* ./
 
 # 设置时区
 ENV TZ=Europe/London
