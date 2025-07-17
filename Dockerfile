@@ -33,7 +33,7 @@ COPY --from=builder /app/main .
 COPY --from=builder /app/migrate .
 
 # 设置时区
-ENV TZ=Asia/Shanghai
+ENV TZ=Europe/London
 
 # 暴露端口
 EXPOSE 8080
