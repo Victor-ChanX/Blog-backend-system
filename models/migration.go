@@ -121,6 +121,16 @@ var migrations = []MigrationItem{
 			return db.Migrator().DropTable(&ArticleContent{})
 		},
 	},
+	{
+		Version: "004",
+		Name:    "create_analytics_tables",
+		Up: func(db *gorm.DB) error {
+			return db.AutoMigrate(&TrackingEvent{}, &DailyStats{}, &PageHeatmap{})
+		},
+		Down: func(db *gorm.DB) error {
+			return db.Migrator().DropTable(&TrackingEvent{}, &DailyStats{}, &PageHeatmap{})
+		},
+	},
 }
 
 // RunMigrations 执行所有未应用的迁移

@@ -26,6 +26,16 @@ func main() {
 		log.Println("图片上传功能将不可用")
 	}
 
+	// 初始化Redis
+	if err := utils.InitRedis(); err != nil {
+		log.Printf("Redis初始化失败: %v", err)
+		log.Println("数据分析功能将不可用")
+	} else {
+		// 启动定时任务
+		utils.StartScheduler()
+		log.Println("数据转存定时任务已启动")
+	}
+
 	// 设置Gin模式
 	if config.AppConfig.Mode == "release" {
 		gin.SetMode(gin.ReleaseMode)
