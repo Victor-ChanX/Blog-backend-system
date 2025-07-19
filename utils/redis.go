@@ -17,24 +17,37 @@ var RedisClient *redis.Client
 
 // InitRedis 初始化Redis连接
 func InitRedis() error {
-	addr := os.Getenv("REDIS_ADDR")
-	if addr == "" {
-		addr = "localhost:6379"
-	}
-
-	password := os.Getenv("REDIS_PASSWORD")
-	db := 0
-	if dbStr := os.Getenv("REDIS_DB"); dbStr != "" {
-		if dbNum, err := strconv.Atoi(dbStr); err == nil {
-			db = dbNum
+	// 优先检查完整的Redis URL
+	redisURL := os.Getenv("REDIS_URL")
+	
+	if redisURL != "" {
+		// 使用Redis URL连接
+		opt, err := redis.ParseURL(redisURL)
+		if err != nil {
+			return fmt.Errorf("解析Redis URL失败: %v", err)
 		}
-	}
+		RedisClient = redis.NewClient(opt)
+	} else {
+		// 使用分离的配置参数
+		addr := os.Getenv("REDIS_ADDR")
+		if addr == "" {
+			addr = "localhost:6379"
+		}
 
-	RedisClient = redis.NewClient(&redis.Options{
-		Addr:     addr,
-		Password: password,
-		DB:       db,
-	})
+		password := os.Getenv("REDIS_PASSWORD")
+		db := 0
+		if dbStr := os.Getenv("REDIS_DB"); dbStr != "" {
+			if dbNum, err := strconv.Atoi(dbStr); err == nil {
+				db = dbNum
+			}
+		}
+
+		RedisClient = redis.NewClient(&redis.Options{
+			Addr:     addr,
+			Password: password,
+			DB:       db,
+		})
+	}
 
 	ctx := context.Background()
 	_, err := RedisClient.Ping(ctx).Result()
