@@ -44,6 +44,15 @@ func main() {
 	// 创建路由
 	r := gin.Default()
 
+	// 设置代理信任 - 根据环境配置
+	if config.AppConfig.Mode == "release" {
+		// 生产环境：只信任特定的代理IP
+		r.SetTrustedProxies([]string{"127.0.0.1", "::1"})
+	} else {
+		// 开发环境：信任本地代理
+		r.SetTrustedProxies([]string{"127.0.0.1", "::1", "localhost"})
+	}
+
 	// 设置路由
 	routes.SetupRoutes(r)
 
