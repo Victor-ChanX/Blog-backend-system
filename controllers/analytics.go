@@ -158,8 +158,8 @@ func GetDailyStats(c *gin.Context) {
 		dateStr = time.Now().Format("2006-01-02")
 	}
 
-	// 验证日期格式
-	_, err := time.Parse("2006-01-02", dateStr)
+	// 验证日期格式并解析为时间对象
+	parsedDate, err := time.Parse("2006-01-02", dateStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "日期格式错误，请使用YYYY-MM-DD格式",
@@ -167,11 +167,12 @@ func GetDailyStats(c *gin.Context) {
 		return
 	}
 
-	// 查询数据库中的统计数据
+	// 查询数据库中的统计数据，使用DATE函数进行日期比较
 	var dailyStats models.DailyStats
-	if err := models.DB.Where("date = ?", dateStr).First(&dailyStats).Error; err != nil {
+	if err := models.DB.Where("DATE(date) = DATE(?)", parsedDate).First(&dailyStats).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"error": "未找到指定日期的统计数据",
+			"date": dateStr,
 		})
 		return
 	}
