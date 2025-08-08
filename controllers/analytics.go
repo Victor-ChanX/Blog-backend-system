@@ -38,7 +38,7 @@ func Track(c *gin.Context) {
 	}
 
 	// 获取客户端信息
-	ipAddress := c.ClientIP()
+	ipAddress := utils.GetRealClientIP(c)
 	userAgent := c.GetHeader("User-Agent")
 	userAgentHash := utils.HashUserAgent(userAgent)
 

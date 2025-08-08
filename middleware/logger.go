@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"blog-server/models"
+	"blog-server/utils"
 	"bytes"
 	"encoding/json"
 	"io"
@@ -94,7 +95,7 @@ func LoggerMiddleware() gin.HandlerFunc {
 			StatusCode:   blw.statusCode,
 			ResponseTime: responseTime,
 			UserAgent:    c.Request.UserAgent(),
-			IP:           c.ClientIP(),
+			IP:           utils.GetRealClientIP(c),
 			UserID:       userID,
 			FunctionName: functionName,
 			Level:        level,
@@ -160,3 +161,4 @@ func filterSensitiveData(body string) string {
 
 	return string(filtered)
 }
+

@@ -46,11 +46,16 @@ func main() {
 
 	// 设置代理信任 - 根据环境配置
 	if config.AppConfig.Mode == "release" {
-		// 生产环境：只信任特定的代理IP
-		r.SetTrustedProxies([]string{"127.0.0.1", "::1"})
+		// 生产环境：信任Docker网络和常见代理IP
+		r.SetTrustedProxies([]string{
+			"127.0.0.1", "::1",           // 本地
+			"10.0.0.0/8",                 // Docker内部网络
+			"172.16.0.0/12",              // Docker默认网络
+			"192.168.0.0/16",             // 本地网络
+		})
 	} else {
 		// 开发环境：信任本地代理
-		r.SetTrustedProxies([]string{"127.0.0.1", "::1", "localhost"})
+		r.SetTrustedProxies([]string{"127.0.0.1", "::1", "localhost", "10.0.0.0/8"})
 	}
 
 	// 设置路由
